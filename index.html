@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swipe & Decide: Ein Business-Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;600;700;800;900&family=Squada+One&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Jost', sans-serif; 
+            background-color: #000;
+            overflow: hidden;
+        }
+        .font-squada-one { font-family: 'Squada One', cursive; }
+        .card-container { touch-action: none; }
+        .main-content { position: relative; z-index: 10; }
+        .intro-text, .narrative-enter { animation: fadeIn 0.8s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Wobble Animation for the first card */
+        .initial-wobble {
+            animation: wobble 0.8s 0.5s 1 ease-in-out;
+            transform-origin: bottom; /* This sets the anchor point to the bottom */
+        }
+        @keyframes wobble {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-2deg); }
+            75% { transform: rotate(2deg); }
+        }
+
+        /* Confetti Canvas Styling */
+        #confetti-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none; /* Allows clicks to go through */
+        }
+    </style>
+</head>
+<body>
+    <div id="root" class="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden"></div>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        // --- Story & Game Data with updated image paths ---
+        const storyData = {
+            // --- Level 1 ---
+            'START': {
+                question: "Der Vorstand will KI-Lösungen - und zwar asap.",
+                leftChoice: "Gerne! Wenn jemand dafür die Haftung übernimmt.",
+                rightChoice: "Nein, da sind noch zu viele Fragen zu klären!",
+                nextCardLeft: 'Q2A_AGENTUR',
+                nextCardRight: 'Q2B_CONTROLLING',
+                narrativeLeft: "Gute juristische Absicherung. Währenddessen startet die Konkurrenz bereits erste KI-Kampagnen.",
+                narrativeRight: "Eine mutige, aber riskante Haltung. Der Druck vom Markt wächst, da Wettbewerber ihre Effizienz durch KI zumindest in ihren PR Meldungen steigern.",
+                imageUrl: "images/pukgame_vorstand.png"
+            },
+            // --- Level 2 ---
+            'Q2A_AGENTUR': {
+                question: "Die Agentur schlägt vor, jede Marketingkampagne hyper-individualisiert mit KI-Content zu gestalten.",
+                leftChoice: "Personalisierung ist der Schlüssel! Volle Power!",
+                rightChoice: "Lieber breitere Kampagnen, um nicht zu spezifisch zu werden.",
+                nextCardLeft: 'Q3A_GLEICHE_KI',
+                nextCardRight: 'Q3B_DATEN_AGENT',
+                narrativeLeft: "Ihre Kampagnen kommen zwar individuell an, doch es fehlt der kreative Punch, der wohl nicht in den Datensätzen war.",
+                narrativeRight: "Sicherer Weg, aber Ihre Botschaften gehen im allgemeinen KI-Grundrauschen unter. Die Gefahr des 'Lake of Sameness' wächst.",
+                imageUrl: "images/pukgame_agentur.png"
+            },
+            'Q2B_CONTROLLING': {
+                question: "Das Controlling schlägt vor, den gesamten menschlichen Kundenservice durch Chatbots zu ersetzen.",
+                leftChoice: "Ja. Was soll schon schiefgehen?",
+                rightChoice: "Nein. Seid ihr wahnsinnig?",
+                nextCardLeft: 'Q3C_SOCIAL_WUT',
+                nextCardRight: 'Q3D_KATZENBABYS',
+                narrativeLeft: "Die Kosten sinken, aber die Kundenfrustration steigt. Ihr seid effizient, aber auch austauschbar geworden - gefangen im 'Lake of Sameness'.",
+                narrativeRight: "Sie setzen auf Qualität, aber die Konkurrenz ist durch die Einsparungen günstiger. Der Markt wird härter.",
+                imageUrl: "images/pukgame_controlling.png"
+            },
+            // --- Level 3 ---
+            'Q3A_GLEICHE_KI': {
+                question: "Eine andere Marke nutzt die gleiche KI wie wir. Sollen wir die Kampagne dennoch launchen?",
+                leftChoice: "Ja, ist dann so.",
+                rightChoice: "Nein, Exklusivität ist wichtig.",
+                nextCardLeft: 'Q4A_KOLLEGE',
+                nextCardRight: 'Q4B_FOTOGRAF',
+                narrativeLeft: "Pragmatisch. Sie sind schnell am Markt, aber Ihre Kampagne sieht aus wie die der Konkurrenz. Welcome to the 'Lake of Sameness'.",
+                narrativeRight: "Ein teurer, aber wichtiger Schritt zur Differenzierung. Sie investieren in Einzigartigkeit.",
+                imageUrl: "images/pukgame_gleiche_ki.png"
+            },
+            'Q3B_DATEN_AGENT': {
+                question: "Der neue KI-Agent sorgt für mehr Effizienz, könnte aber auch illegal Daten stehlen. Dennoch aktivieren?",
+                leftChoice: "Ja. Wir legen einfach Geld für die Klagen zurück.",
+                rightChoice: "Lass das mal lieber die menschlichen Profis machen.",
+                nextCardLeft: 'Q4C_SOCIAL_HACK',
+                nextCardRight: 'Q4D_PRODUKTFOTOS',
+                narrativeLeft: "Ein extrem riskanter Schritt. Die Effizienz ist berauschend, aber die rechtlichen Wolken ziehen sich bereits am Horizont zusammen.",
+                narrativeRight: "Eine weise Entscheidung. Sie opfern kurzfristige Gewinne für langfristige Stabilität und Vertrauen.",
+                imageUrl: "images/pukgame_daten_agent.png"
+            },
+            'Q3C_SOCIAL_WUT': {
+                question: "Unser Social-Media-KI-Bot hat sich mit einem User in eine Wutspirale verrannt. Abschalten?",
+                leftChoice: "Ja, packt da wieder Menschen dahinter!",
+                rightChoice: "Nein, nutzt es als funny Social Media Story!",
+                nextCardLeft: 'Q4E_JOBVERLUST',
+                nextCardRight: 'Q4F_KOLLEGE',
+                narrativeLeft: "Sie kehren zur menschlichen Methode zurück, die aber bei viel Traffic nicht immer mit der Moderation hinter her kommt.",
+                narrativeRight: "Die Story geht viral! Ein riskanter, aber kreativer Schachzug, der Ihre Marke vom Einheitsbrei abhebt. Aber auch ihre KI-Automatisierung entlarvt.",
+                imageUrl: "images/pukgame_social_wut.png"
+            },
+            'Q3D_KATZENBABYS': {
+                question: "ChatGPT denkt, unser Produkt wird aus Katzenbabys hergestellt. Was tun?",
+                leftChoice: "SEO für KI! Die Fakten korrigieren.",
+                rightChoice: "ChatGPT verklagen.",
+                nextCardLeft: 'Q4G_WISSEN',
+                nextCardRight: 'Q4H_GESETZE',
+                narrativeLeft: "Eine strategische Investition in die Zukunft. Sie sorgen dafür, dass KIs die Wahrheit über Ihre Marke lernen.",
+                narrativeRight: "Ein bizarrer und teurer Rechtsstreit beginnt. Ihre Marke ist in aller Munde - aber aus den falschen Gründen. Und die Memes nicht mehr wegzubekommen.",
+                imageUrl: "images/pukgame_katzenbabys.png"
+            },
+            // --- Final Questions leading to Endings ---
+            'Q4A_KOLLEGE': { question: "Eine Angestellte hat ihren gesamten Job mit KI ersetzt. Feuern oder als Expertin befördern?", leftChoice: "Feuern! Das ist Betrug!", rightChoice: "Befördern! Das ist die Zukunft!", nextCardLeft: 'END_EFFIZIENZ', nextCardRight: 'END_AGIL', narrativeLeft: "Sie heuert bei der Konkurrenz an und boosted deren Marke mit KI.", narrativeRight: "Nach einer Aussprache nutzen Sie die Skills ihrer Angestelltin, um ihre Unternehmen nach vorne zu bringen.", imageUrl: "images/pukgame_kollege.png" },
+            'Q4B_FOTOGRAF': { question: "Ein Fotograf behauptet, dass in ihren KI Produktfotos eines seiner Bilder genutzt wurde.", leftChoice: "Was genau hatte dieser KI Freelancer nochmal gemacht?", rightChoice: "Kann nicht sein, wir haben das vorher gecheckt.", nextCardLeft: 'END_EFFIZIENZ', nextCardRight: 'END_STRATEGISCH', narrativeLeft: "Sie finden heraus, dass der Freelancer tatsächlich ein Foto ohne Zustimmung mit KI genutzt hatte. Sie müssen die Kampagne stoppen.", narrativeRight: "Dank einer sauberen Dokumentation und Rechteklärung sind sie auf der sicheren Seite. Die Kampagne läuft weiter.", imageUrl: "images/pukgame_fotograf.png" },
+            'Q4C_SOCIAL_HACK': { question: "Eine KI hat mittels Telefonanruf ihr Unternehmen gehackt. Alle Telefone abstöpseln oder Leute schulen?", leftChoice: "Schulen! Menschen sind lernfähig.", rightChoice: "Abstöpseln! Sicher ist sicher.", nextCardLeft: 'END_QUALITAET', nextCardRight: 'END_VISIONAER', narrativeLeft: "Ihre Mitarbeitenden sind nun gegenüber Social Hacking besser gewappnet. Und die geheime Passphrase kann auch keine KI erraten.", narrativeRight: "Ihre Mitarbeitenden haben zu viel abgestöpselt und ihre gesamte IT- Infrastruktur ist offline.", imageUrl: "images/pukgame_social_hack.png" },
+            'Q4D_PRODUKTFOTOS': { question: "Statt Produktfotos will das Produktmanagement KI-Bilder erstellen lassen, die dem Produkt nur ähneln.", leftChoice: "Ja, klar!", rightChoice: "Nein, KI nur mit Qualität bitte!", nextCardLeft: 'END_EFFIZIENZ', nextCardRight: 'END_STRATEGISCH', narrativeLeft: "Kunden denken, sie kaufen bei Temu ein und wundern sich über die hohen Preise.", narrativeRight: "Sie führen KI-Produktbilder ein mit viel KI-Training und professioneller Generierung. Der Aufwand sinkt, die Qualität bleibt gleich.", imageUrl: "images/pukgame_produktfotos.png" },
+            'Q4E_JOBVERLUST': { question: "KI-Tools sorgen für Jobverlustängste in Ihrem Unternehmen.", leftChoice: "Eine KI entwickeln lassen, die Mitarbeitende therapiert.", rightChoice: "Mitarbeitende mit KI umschulen lassen.", nextCardLeft: 'END_AGIL', nextCardRight: 'END_QUALITAET', narrativeLeft: "Ihre Mitarbeitenden werden nur oberflächlich versorgt, statt neuer Talente mit KI zu entwickeln.", narrativeRight: "Repetitive Aufgaben werden von KI übernommen und ihre Mitarbeitenden erhöhen die Produktivität mehr als zuvor.", imageUrl: "images/pukgame_jobverlust.png" },
+            'Q4F_KOLLEGE': { question: "Eine Angestellte hat ihren gesamten Job mit KI ersetzt. Feuern oder als Expertin befördern?", leftChoice: "Feuern! Das ist Betrug!", rightChoice: "Befördern! Das ist die Zukunft!", nextCardLeft: 'END_QUALITAET', nextCardRight: 'END_AGIL', narrativeLeft: "Sie heuert bei der Konkurrenz an und boosted deren Marke mit KI.", narrativeRight: "Nach einer Aussprache nutzen Sie die Skills ihrer Angestelltin, um ihre Unternehmen nach vorne zu bringen.", imageUrl: "images/pukgame_kollege.png" },
+            'Q4G_WISSEN': { question: "Mit Hilfe von KI könnten Sie ihr Unternehmens-Wissen für alle interaktiv machen.", leftChoice: "Bin dabei!", rightChoice: "Nein, das kann noch warten.", nextCardLeft: 'END_STRATEGISCH', nextCardRight: 'END_EFFIZIENZ', narrativeLeft: "Ihr Mitarbeitenden arbeiten nun schneller und besser zusammen. Ein Gewinn für alle.", narrativeRight: "Sie verlieren Effizienz und Mitarbeitende, da ihr Unternehmen als rückständig wahrgenommen wird.", imageUrl: "images/pukgame_wissen.png" },
+            'Q4H_GESETZE': { question: "Die Regierung plant strenge KI-Gesetze. Aktiv Lobbying betreiben oder proaktiv anpassen?", leftChoice: "Lobbying!", rightChoice: "Anpassen!", nextCardLeft: 'END_VISIONAER', nextCardRight: 'END_STRATEGISCH', narrativeLeft: "Die Konkurrenz passt sich an und Kunden fühlen sich dort wohler.", narrativeRight: "Ihre Kunden freuen sich über die Einhaltung der Nutzerrechte und sie erhalten kostenlos Mund-zu-Mund-Propaganda.", imageUrl: "images/pukgame_gesetze.png" },
+
+            // --- Endings ---
+            'END_VISIONAER': { title: "Die visionäre Instanz", analysis: "Sie denken groß und handeln mutig. Ihre Entscheidungen zeigen, dass Sie bereit sind, etablierte Grenzen zu überschreiten, um wirklich Neues zu schaffen. Das ist der Stoff, aus dem Marktführer gemacht sind. Um diese visionäre Kraft voll zu entfalten, ist der nächste Schritt, Ihre kühnen Ideen mit einer soliden <b>strategischen und finanziellen Absicherung</b> zu untermauern.", imageUrl: "images/pukgame_end_visionaer.png" },
+            'END_QUALITAET': { title: "Das Qualitäts-Bollwerk", analysis: "Ihre Entscheidungen stellen den Menschen und die Qualität in den Mittelpunkt. Sie bauen eine Marke mit starken Werten und hohem Kundenvertrauen auf – ein unschätzbarer Vorteil. Die Herausforderung besteht nun darin, diese starke Basis mit <b>skalierbaren KI-Lösungen</b> zu verbinden, ohne Ihre Prinzipien zu opfern. So können Sie Ihre Werte bewahren und gleichzeitig im Tempo der neuen Ära mithalten.", imageUrl: "images/pukgame_end_qualitaet.png" },
+            'END_EFFIZIENZ': { title: "Das Effizienz-Zentrum", analysis: "Sie haben ein scharfes Auge für Prozesse und Kosten. Ihre Entscheidungen haben eine hocheffiziente Grundlage geschaffen – eine enorme Stärke im Wettbewerb. Doch reine Effizienz führt oft in den 'Lake of Sameness'. Ihr nächster Schritt: Nutzen Sie die gewonnenen Ressourcen, um gezielt in <b>einzigartige, kreative Leuchtturmprojekte</b> zu investieren, die Ihre Marke unverwechselbar machen.", imageUrl: "images/pukgame_end_effizienz.png" },
+            'END_AGIL': { title: "Das agile Talent", analysis: "Ihre Entscheidungen zeigen eine bemerkenswerte Anpassungsfähigkeit. Sie reagieren flexibel auf jede Herausforderung – eine wichtige Fähigkeit in der KI-Ära. Um diese Agilität in eine klare Stärke zu verwandeln, braucht es eine übergeordnete <b>strategische Leitlinie</b>. Diese hilft Ihnen, Ihre Flexibilität gezielt einzusetzen und Ihre Energie auf die entscheidenden Hebel für Ihren Markterfolg zu konzentrieren.", imageUrl: "images/pukgame_end_agil.png" },
+            'END_STRATEGISCH': { title: "Der strategische Verstand", analysis: "Exzellent! Sie balancieren Innovation und Risiko meisterhaft aus. Sie nutzen KI, wo es Sinn ergibt, behalten aber die Kontrolle und den Fokus auf Qualität. Das ist der Weg, um dem <b>'Lake of Sameness'</b> zu entkommen und nachhaltig erfolgreich zu sein.", imageUrl: "images/pukgame_end_strategisch.png" }
+        };
+
+        const Confetti = () => {
+            const canvasRef = useRef(null);
+
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                let animationFrameId;
+                const particles = [];
+                const particleCount = 200;
+                const colors = ['#10fe70', '#3b82f6'];
+
+                const resizeCanvas = () => {
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                };
+                resizeCanvas();
+                window.addEventListener('resize', resizeCanvas);
+
+                for (let i = 0; i < particleCount; i++) {
+                    particles.push({
+                        x: Math.random() < 0.5 ? 0 : canvas.width,
+                        y: Math.random() * canvas.height,
+                        vx: (Math.random() - 0.5) * 4 + (Math.random() < 0.5 ? -2 : 2),
+                        vy: Math.random() * -10 - 5,
+                        size: Math.random() * 8 + 2,
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        rotation: Math.random() * 360,
+                        spin: (Math.random() - 0.5) * 10
+                    });
+                }
+
+                const animate = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    particles.forEach(p => {
+                        p.vy += 0.15; // Gravity
+                        p.x += p.vx;
+                        p.y += p.vy;
+                        p.rotation += p.spin;
+
+                        ctx.save();
+                        ctx.translate(p.x, p.y);
+                        ctx.rotate(p.rotation * Math.PI / 180);
+                        ctx.fillStyle = p.color;
+                        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+                        ctx.restore();
+
+                        if (p.y > canvas.height) {
+                            p.y = -10;
+                            p.x = Math.random() < 0.5 ? 0 : canvas.width;
+                        }
+                    });
+
+                    animationFrameId = requestAnimationFrame(animate);
+                };
+                animate();
+
+                return () => {
+                    window.removeEventListener('resize', resizeCanvas);
+                    cancelAnimationFrame(animationFrameId);
+                };
+            }, []);
+
+            return <canvas ref={canvasRef} id="confetti-canvas" />;
+        };
+
+
+        const App = () => {
+            const [gameState, setGameState] = useState('START_SCREEN');
+            const [introStep, setIntroStep] = useState(1);
+            const [currentCardId, setCurrentCardId] = useState('START');
+            const [narrative, setNarrative] = useState({ text: '', nextId: '' });
+            const [endResult, setEndResult] = useState(null);
+
+            const initGame = useCallback(() => {
+                setGameState('IN_GAME');
+                setCurrentCardId('START');
+                setNarrative({ text: '', nextId: '' });
+                setEndResult(null);
+            }, []);
+
+            const handleChoice = useCallback((choiceType) => {
+                const currentCard = storyData[currentCardId];
+                const nextId = choiceType === 'left' ? currentCard.nextCardLeft : currentCard.nextCardRight;
+                const narrativeText = choiceType === 'left' ? currentCard.narrativeLeft : currentCard.narrativeRight;
+
+                setNarrative({ text: narrativeText || "Ihre Entscheidung wird die Zukunft formen...", nextId: nextId });
+                setGameState('NARRATIVE');
+            }, [currentCardId]);
+
+            const handleNarrativeContinue = useCallback(() => {
+                const nextId = narrative.nextId;
+                if (nextId.startsWith('END_')) {
+                    setEndResult(storyData[nextId]);
+                    setGameState('END_SCREEN');
+                } else {
+                    setCurrentCardId(nextId);
+                    setGameState('IN_GAME');
+                    setNarrative({ text: '', nextId: '' });
+                }
+            }, [narrative.nextId]);
+
+            useEffect(() => {
+                if (gameState !== 'START_SCREEN') {
+                    document.body.style.backgroundColor = '#0d1117';
+                } else {
+                    document.body.style.backgroundColor = '#000';
+                }
+            }, [gameState]);
+
+            const Card = ({ card, onChoice, isEndCard = false, endContent = {}, isFirstCard = false }) => {
+                const [dragState, setDragState] = useState({ isDragging: false, startX: 0, currentX: 0 });
+                const [transformStyle, setTransformStyle] = useState({});
+                const [choice, setChoice] = useState({ text: '', opacity: 0, shadow: 0, color: 'green' });
+                
+                const imageUrl = isEndCard ? endContent.imageUrl : card.imageUrl;
+
+                const handleDragStart = (clientX) => {
+                    if (isEndCard) return;
+                    setDragState({ isDragging: true, startX: clientX, currentX: clientX });
+                    setTransformStyle({ transition: 'none' });
+                };
+                const handleDragMove = (clientX) => {
+                    if (isEndCard || !dragState.isDragging) return;
+                    setDragState(prev => ({ ...prev, currentX: clientX }));
+                    const deltaX = clientX - dragState.startX;
+                    setTransformStyle({ transform: `translateX(${deltaX}px) rotate(${deltaX / 20}deg)`, transition: 'none' });
+                    const opacity = Math.min(1, Math.abs(deltaX) / 100);
+                    const shadow = Math.min(1, Math.abs(deltaX) / 50);
+                    
+                    if (deltaX > 0) {
+                        setChoice({ text: card.rightChoice, opacity, shadow, color: 'green' });
+                    } else if (deltaX < 0) {
+                        setChoice({ text: card.leftChoice, opacity, shadow, color: 'blue' });
+                    } else {
+                        setChoice({ text: '', opacity: 0, shadow: 0, color: 'green' });
+                    }
+                };
+                const handleDragEnd = () => {
+                    if (isEndCard || !dragState.isDragging) return;
+                    const deltaX = dragState.currentX - dragState.startX;
+                    if (deltaX > 100) onChoice('right');
+                    else if (deltaX < -100) onChoice('left');
+                    setDragState({ isDragging: false, startX: 0, currentX: 0 });
+                    setTransformStyle({ transform: 'translateX(0) rotate(0)', transition: 'transform 0.3s ease-out' });
+                    setChoice({ text: '', opacity: 0, shadow: 0, color: 'green' });
+                };
+
+                const shadowRgb = choice.color === 'blue' ? '59, 130, 246' : '16, 254, 112';
+
+                return (
+                    <div
+                        className={`relative bg-gray-900 rounded-2xl shadow-xl w-full max-w-sm mx-auto flex flex-col justify-center items-center text-center overflow-hidden card-container ${!isEndCard ? 'cursor-grab active:cursor-grabbing' : ''} ${isFirstCard ? 'initial-wobble' : ''}`}
+                        style={{ height: '450px', ...transformStyle }}
+                        onMouseDown={(e) => handleDragStart(e.clientX)} onMouseMove={(e) => handleDragMove(e.clientX)}
+                        onMouseUp={handleDragEnd} onMouseLeave={handleDragEnd}
+                        onTouchStart={(e) => handleDragStart(e.touches[0].clientX)} onTouchMove={(e) => handleDragMove(e.touches[0].clientX)}
+                        onTouchEnd={handleDragEnd}>
+                        
+                        <img src={imageUrl} className="absolute inset-0 w-full h-full object-cover" alt="Kartenhintergrund"  onError={(e) => { e.target.onerror = null; e.target.src=`https://placehold.co/600x450/161b22/c9d1d9?text=Bild+l%C3%A4dt...`; }}/>
+                        <div className="absolute inset-0 bg-black bg-opacity-60"></div>
+
+                        {isEndCard ? (
+                            <div className="relative z-10 p-6 text-white">
+                                <h2 className="text-3xl font-bold text-[#10fe70] mb-4 font-squada-one">{endContent.title}</h2>
+                                <p className="text-lg" dangerouslySetInnerHTML={{ __html: endContent.analysis }}></p>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="absolute inset-0 flex items-center justify-center p-4">
+                                    <p className="text-lg md:text-xl font-semibold text-gray-100 text-center">{card.question}</p>
+                                </div>
+                                <div className="absolute inset-0 flex items-center justify-center p-4 transition-opacity duration-100" style={{ opacity: choice.opacity }}>
+                                    <div className="text-2xl font-bold text-gray-100 text-center rounded-lg p-4 bg-black/50 backdrop-blur-sm" style={{ textShadow: `0 0 ${choice.shadow * 10}px rgba(${shadowRgb}, ${choice.shadow})`, boxShadow: `0 0 ${choice.shadow * 15}px rgba(${shadowRgb}, ${choice.shadow * 0.5})` }}>
+                                        {choice.text}
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                );
+            };
+
+            const renderContent = () => {
+                const currentCard = storyData[currentCardId];
+                const showHeader = gameState === 'END_SCREEN';
+
+                return (
+                    <>
+                        {showHeader && (
+                            <div className="mb-6">
+                                <h1 className="text-4xl md:text-5xl font-squada-one text-[#10fe70] tracking-wide uppercase">Swipe & Decide</h1>
+                                <p className="text-gray-300 text-lg mt-2">Ein Business-Simulator in Zeiten von KI.</p>
+                            </div>
+                        )}
+
+                        {gameState === 'IN_GAME' && currentCard && (
+                            <>
+                                <Card card={currentCard} onChoice={handleChoice} isFirstCard={currentCardId === 'START'} />
+                                <div className="flex justify-between mt-6 w-full max-w-sm px-2">
+                                    <button onClick={() => handleChoice('left')} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transform transition-all duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50 text-sm w-5/12">{currentCard.leftChoice}</button>
+                                    <button onClick={() => handleChoice('right')} className="bg-[#10fe70] hover:bg-lime-600 text-gray-900 font-bold py-3 px-4 rounded-xl shadow-md transform transition-all duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-4 focus:ring-[#10fe70] focus:ring-opacity-50 text-sm w-5/12">{currentCard.rightChoice}</button>
+                                </div>
+                                <p className="text-gray-400 text-sm mt-4">(Sie können die Karte auch wischen!)</p>
+                            </>
+                        )}
+
+                        {gameState === 'NARRATIVE' && (
+                            <div className="flex flex-col items-center justify-center w-full max-w-sm mx-auto min-h-[550px] narrative-enter">
+                                <p className="text-gray-200 text-xl md:text-2xl text-center flex-grow flex items-center px-4">{narrative.text}</p>
+                                <button onClick={handleNarrativeContinue} className="bg-[#10fe70] hover:bg-lime-600 text-gray-900 font-bold py-3 px-8 rounded-xl shadow-lg transform transition-all duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-4 focus:ring-[#10fe70] focus:ring-opacity-50 mt-8">Weiter</button>
+                            </div>
+                        )}
+
+                        {gameState === 'END_SCREEN' && endResult && (
+                            <div className="flex flex-col items-center">
+                                <Card isEndCard={true} endContent={endResult} />
+                                <p className="text-gray-200 text-lg my-6 mt-8">
+                                    Möchten Sie mehr über KI erfahren und wie PUK Ihnen helfen kann, die Zukunft mitzugestalten?
+                                </p>
+                                <div className="flex space-x-4">
+                                    <button onClick={() => window.open('https://www.philippundkeuntje.de/ai-event', '_blank')} className="bg-[#10fe70] hover:bg-lime-600 text-gray-900 font-bold py-3 px-8 rounded-xl shadow-lg transform transition-all duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-4 focus:ring-[#10fe70] focus:ring-opacity-50">Mehr erfahren</button>
+                                    <button onClick={initGame} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg transform transition-all duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-4 focus:ring-gray-500">Neu starten</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {gameState === 'START_SCREEN' && (
+                           <div className="flex flex-col items-center justify-center min-h-[550px]">
+                                {introStep === 1 ? (
+                                    <div className="intro-text text-center text-gray-200 text-lg max-w-lg">
+                                        <p className="mb-2">KI hat die Magie der Kreation für alle zugänglich gemacht.</p>
+                                        <p className="mb-2">Die Geschwindigkeit ist atemberaubend.</p>
+                                        <p className="mb-8">Die Möglichkeiten angeblich unendlich.</p>
+                                        <p className="text-3xl font-bold text-[#10fe70] mb-4 font-squada-one">Die Frage ist nur: Wenn alles möglich ist, was ist dann noch besonders?</p>
+                                        <p className="text-3xl font-bold text-[#10fe70] mb-8 font-squada-one">Wir glauben: Das ist der beste Filter der Welt.</p>
+                                        <p className="mb-4">Denn die Magie steckt nicht mehr im Machen. Sondern im Wollen. Im Sehen. Im Entscheiden.</p>
+                                        <p className="mb-8">Das Besondere ist nicht mehr, dass etwas geht. Sondern die Haltung und die Vision, die alles lenken.</p>
+                                        <button onClick={() => setIntroStep(2)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg transform transition-all duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-4 focus:ring-gray-500">Weiter</button>
+                                    </div>
+                                ) : (
+                                    <div className="intro-text text-center text-gray-200 text-lg max-w-lg">
+                                        <p className="mb-8">Um ein Gefühl dafür zu bekommen, haben wir einen Simulator entwickelt:</p>
+                                        <p className="mb-8">Ihre Mission: Navigieren Sie durch die skurrilen Herausforderungen der KI-Entwicklungen. Wischen Sie links oder rechts, um Entscheidungen zu treffen.</p>
+                                        <button onClick={initGame} className="bg-[#10fe70] hover:bg-lime-600 text-gray-900 font-bold py-3 px-8 rounded-xl shadow-lg transform transition-all duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-4 focus:ring-[#10fe70] focus:ring-opacity-50">Loslegen</button>
+                                    </div>
+                                )}
+                           </div>
+                        )}
+                    </>
+                );
+            };
+
+            return (
+                <div className="main-content">
+                    {gameState === 'END_SCREEN' && <Confetti />}
+                    <div className="bg-gray-900/80 backdrop-blur-sm p-6 md:p-8 rounded-3xl shadow-2xl w-[512px] max-w-full text-center border-b-4 border-[#10fe70]" style={{minHeight: '700px'}}>
+                        {renderContent()}
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
