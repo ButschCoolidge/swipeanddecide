@@ -343,9 +343,9 @@
                         {gameState === 'IN_GAME' && currentCard && (
                             <>
                                 <Card card={currentCard} onChoice={handleChoice} isFirstCard={currentCardId === 'START'} />
-                                <div className="flex justify-between mt-6 w-full max-w-sm px-2 items-start">
-                                    <button onClick={() => handleChoice('left')} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transform transition-all duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50 text-sm w-5/12">{currentCard.leftChoice}</button>
-                                    <button onClick={() => handleChoice('right')} className="bg-[#10fe70] hover:bg-lime-600 text-gray-900 font-bold py-3 px-4 rounded-xl shadow-md transform transition-all duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-4 focus:ring-[#10fe70] focus:ring-opacity-50 text-sm w-5/12">{currentCard.rightChoice}</button>
+                                <div className="flex justify-between mt-6 w-full max-w-sm mx-auto px-2">
+                                    <button onClick={() => handleChoice('left')} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transform transition-all duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50 text-sm w-[48%]">{currentCard.leftChoice}</button>
+                                    <button onClick={() => handleChoice('right')} className="bg-[#10fe70] hover:bg-lime-600 text-gray-900 font-bold py-3 px-4 rounded-xl shadow-md transform transition-all duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-4 focus:ring-[#10fe70] focus:ring-opacity-50 text-sm w-[48%]">{currentCard.rightChoice}</button>
                                 </div>
                                 <p className="text-gray-400 text-sm mt-4">(Sie können die Karte auch wischen!)</p>
                             </>
