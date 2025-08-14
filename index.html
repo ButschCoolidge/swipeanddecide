@@ -154,6 +154,7 @@
                 const particles = [];
                 const particleCount = 200;
                 const colors = ['#10fe70', '#3b82f6'];
+                let isRunning = true;
 
                 const resizeCanvas = () => {
                     canvas.width = window.innerWidth;
@@ -191,7 +192,7 @@
                         ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
                         ctx.restore();
 
-                        if (p.y > canvas.height) {
+                        if (p.y > canvas.height && isRunning) {
                             p.y = -10;
                             p.x = Math.random() < 0.5 ? 0 : canvas.width;
                         }
@@ -201,9 +202,14 @@
                 };
                 animate();
 
+                const timer = setTimeout(() => {
+                    isRunning = false;
+                }, 3000); // Stop generating new confetti after 3 seconds
+
                 return () => {
                     window.removeEventListener('resize', resizeCanvas);
                     cancelAnimationFrame(animationFrameId);
+                    clearTimeout(timer);
                 };
             }, []);
 
