@@ -252,14 +252,6 @@
                 }
             }, [narrative.nextId]);
 
-            useEffect(() => {
-                if (gameState !== 'START_SCREEN') {
-                    document.body.style.backgroundColor = '#0d1117';
-                } else {
-                    document.body.style.backgroundColor = '#000';
-                }
-            }, [gameState]);
-
             const Card = ({ card, onChoice, isEndCard = false, endContent = {}, isFirstCard = false }) => {
                 const [dragState, setDragState] = useState({ isDragging: false, startX: 0, currentX: 0 });
                 const [transformStyle, setTransformStyle] = useState({});
@@ -309,21 +301,23 @@
                         onTouchStart={(e) => handleDragStart(e.touches[0].clientX)} onTouchMove={(e) => handleDragMove(e.touches[0].clientX)}
                         onTouchEnd={handleDragEnd}>
                         
-                        <img src={imageUrl} className="absolute inset-0 w-full h-full object-cover" alt="Kartenhintergrund"  onError={(e) => { e.target.onerror = null; e.target.src=`https://placehold.co/600x450/161b22/c9d1d9?text=Bild+l%C3%A4dt...`; }}/>
-                        <div className="absolute inset-0 bg-black bg-opacity-60"></div>
+                        <img src={imageUrl} className="absolute inset-0 w-full h-full object-cover" alt="Kartenhintergrund"  onError={(e) => { e.target.onerror = null; e.target.src='https://placehold.co/600x450/161b22/c9d1d9?text=Bild+l%C3%A4dt...'; }}/>
+                        {/* --- MODIFIED GRADIENT OVERLAY --- */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent"></div>
 
                         {isEndCard ? (
-                            <div className="relative z-10 p-6 text-white">
+                            <div className="relative z-10 p-6">
                                 <h2 className="text-3xl font-bold text-[#10fe70] mb-4 font-squada-one">{endContent.title}</h2>
-                                <p className="text-lg" dangerouslySetInnerHTML={{ __html: endContent.analysis }}></p>
+                                <p className="text-lg text-white" dangerouslySetInnerHTML={{ __html: endContent.analysis }}></p>
                             </div>
                         ) : (
                             <>
-                                <div className="absolute inset-0 flex items-center justify-center p-4">
-                                    <p className="text-lg md:text-xl font-semibold text-gray-100 text-center">{card.question}</p>
+                                {/* --- MODIFIED TEXT CONTAINER --- */}
+                                <div className="absolute top-1/2 left-0 right-0 bottom-0 flex items-center justify-center p-6">
+                                    <p className="text-xl md:text-2xl font-semibold text-white text-center">{card.question}</p>
                                 </div>
                                 <div className="absolute inset-0 flex items-center justify-center p-4 transition-opacity duration-100" style={{ opacity: choice.opacity }}>
-                                    <div className="text-2xl font-bold text-gray-100 text-center rounded-lg p-4 bg-black/50 backdrop-blur-sm" style={{ textShadow: `0 0 ${choice.shadow * 10}px rgba(${shadowRgb}, ${choice.shadow})`, boxShadow: `0 0 ${choice.shadow * 15}px rgba(${shadowRgb}, ${choice.shadow * 0.5})` }}>
+                                    <div className="text-2xl font-bold text-gray-100 text-center rounded-lg p-4 bg-black/80 backdrop-blur-sm" style={{ textShadow: `0 0 ${choice.shadow * 10}px rgba(${shadowRgb}, ${choice.shadow})`, boxShadow: `0 0 ${choice.shadow * 15}px rgba(${shadowRgb}, ${choice.shadow * 0.5})` }}>
                                         {choice.text}
                                     </div>
                                 </div>
@@ -347,14 +341,17 @@
                         )}
 
                         {gameState === 'IN_GAME' && currentCard && (
-                            <>
+                            <div className="flex flex-col justify-center flex-grow">
                                 <Card card={currentCard} onChoice={handleChoice} isFirstCard={currentCardId === 'START'} />
                                 <div className="flex justify-between mt-6 w-full max-w-sm mx-auto px-2">
                                     <button onClick={() => handleChoice('left')} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transform transition-all duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50 text-sm w-[48%]">{currentCard.leftChoice}</button>
                                     <button onClick={() => handleChoice('right')} className="bg-[#10fe70] hover:bg-lime-600 text-gray-900 font-bold py-3 px-4 rounded-xl shadow-md transform transition-all duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-4 focus:ring-[#10fe70] focus:ring-opacity-50 text-sm w-[48%]">{currentCard.rightChoice}</button>
                                 </div>
-                                <p className="text-gray-400 text-sm mt-4">(Sie können die Karte auch wischen!)</p>
-                            </>
+                                {/* --- MODIFIED: CONDITIONAL TEXT --- */}
+                                {currentCardId === 'START' && (
+                                    <p className="text-gray-400 text-sm mt-4 text-center w-full max-w-sm mx-auto">(Sie können die Karte auch wischen!)</p>
+                                )}
+                            </div>
                         )}
 
                         {gameState === 'NARRATIVE' && (
@@ -365,7 +362,7 @@
                         )}
 
                         {gameState === 'END_SCREEN' && endResult && (
-                            <div className="flex flex-col items-center">
+                            <div className="flex flex-col items-center justify-center flex-grow">
                                 <Card isEndCard={true} endContent={endResult} />
                                 <p className="text-gray-200 text-lg my-6 mt-8">
                                     Möchten Sie mehr über KI erfahren und wie PUK Ihnen helfen kann, die Zukunft mitzugestalten?
@@ -378,40 +375,49 @@
                         )}
 
                         {gameState === 'START_SCREEN' && (
-                           <div className="flex flex-col items-center justify-center min-h-[550px]">
-                                {introStep === 1 ? (
-                                    <div className="intro-text text-center text-gray-200 text-lg max-w-lg">
-                                        <div className="space-y-2 mb-8">
-                                            <p>KI hat die Magie der Kreation für alle zugänglich gemacht.</p>
-                                            <p>Die Geschwindigkeit ist atemberaubend.</p>
-                                            <p>Die Möglichkeiten angeblich unendlich.</p>
+                           <div className="relative flex flex-col justify-end h-full w-full">
+                               {/* --- MODIFIED: GRADIENT OVERLAY FOR INTRO --- */}
+                               <div className="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent rounded-2xl"></div>
+                               {/* --- MODIFIED: TEXT CONTAINER FOR INTRO --- */}
+                              <div className="relative z-10 h-[650px] flex flex-col justify-center items-center pb-8 p-6">
+                                    {introStep === 1 ? (
+                                        <div className="intro-text text-center text-gray-200 text-lg max-w-lg">
+                                            {/* --- MODIFIED: INTRO TEXT --- */}
+                                            <p className="mb-8">Mit KI ist gefühlt bald alles möglich. Doch wenn alles möglich ist, was ist dann noch besonders? Wir glauben: Das ist der beste Filter der Welt. Denn die Magie steckt nicht mehr im Machen – sondern im Wollen. Im Sehen. Im Entscheiden.</p>
+                                            <button onClick={() => setIntroStep(2)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg transform transition-all duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-4 focus:ring-gray-500 mt-8">Weiter</button>
                                         </div>
-                                        <p className="text-3xl font-bold text-[#10fe70] mb-4 font-squada-one">Die Frage ist nur: Wenn alles möglich ist, was ist dann noch besonders?</p>
-                                        <p className="text-3xl font-bold text-[#10fe70] mb-8 font-squada-one">Wir glauben: Das ist der beste Filter der Welt.</p>
-                                        <div className="space-y-4">
-                                            <p>Denn die Magie steckt nicht mehr im Machen. Sondern im Wollen. Im Sehen. Im Entscheiden.</p>
-                                            <p>Das Besondere ist nicht mehr, dass etwas geht. Sondern die Haltung und die Vision, die alles lenken.</p>
+                                    ) : (
+                                        <div className="intro-text text-center text-gray-200 text-lg max-w-lg">
+                                            <p className="mb-8">Um ein Gefühl dafür zu bekommen, haben wir einen Simulator entwickelt:</p>
+                                            <p className="mb-8">Ihre Mission: Navigieren Sie durch die skurrilen Herausforderungen der KI-Entwicklungen. Wischen Sie links oder rechts, um Entscheidungen zu treffen.</p>
+                                            <button onClick={initGame} className="bg-[#10fe70] hover:bg-lime-600 text-gray-900 font-bold py-3 px-8 rounded-xl shadow-lg transform transition-all duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-4 focus:ring-[#10fe70] focus:ring-opacity-50">Loslegen</button>
                                         </div>
-                                        <button onClick={() => setIntroStep(2)} className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-8 rounded-xl shadow-lg transform transition-all duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-4 focus:ring-gray-500 mt-8">Weiter</button>
-                                    </div>
-                                ) : (
-                                    <div className="intro-text text-center text-gray-200 text-lg max-w-lg">
-                                        <p className="mb-8">Um ein Gefühl dafür zu bekommen, haben wir einen Simulator entwickelt:</p>
-                                        <p className="mb-8">Ihre Mission: Navigieren Sie durch die skurrilen Herausforderungen der KI-Entwicklungen. Wischen Sie links oder rechts, um Entscheidungen zu treffen.</p>
-                                        <button onClick={initGame} className="bg-[#10fe70] hover:bg-lime-600 text-gray-900 font-bold py-3 px-8 rounded-xl shadow-lg transform transition-all duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-4 focus:ring-[#10fe70] focus:ring-opacity-50">Loslegen</button>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                            </div>
                         )}
                     </>
                 );
             };
 
+            const containerStyle = {
+                minHeight: '700px',
+                backgroundImage: gameState === 'START_SCREEN' ? `url('images/pukgame_intro.png')` : 'none',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                position: 'relative',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column'
+            };
+
             return (
                 <div className="main-content">
                     {gameState === 'END_SCREEN' && <Confetti />}
-                    <div className="bg-gray-900/80 backdrop-blur-sm p-6 md:p-8 rounded-3xl shadow-2xl w-[512px] max-w-full text-center border-b-4 border-[#10fe70]" style={{minHeight: '700px'}}>
-                        {renderContent()}
+                    <div className="bg-gray-900/80 backdrop-blur-sm p-0 rounded-3xl shadow-2xl w-full sm:w-[512px] text-center border-b-4 border-[#10fe70]" style={containerStyle}>
+                        <div className="p-6 md:p-8 h-full flex flex-col justify-center">
+                            {renderContent()}
+                        </div>
                     </div>
                 </div>
             );
